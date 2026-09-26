@@ -14,6 +14,15 @@ public:
     ~NIM_AOC();
 
 private:
+    /**
+     * Generic stub for all nim:aoc commands
+     *  Outputs:
+     *      1 : Result of function, 0 on success, otherwise error code
+     *      2 : 0
+     *      3 : 0
+     */
+    void Stub(Kernel::HLERequestContext& ctx);
+
     SERVICE_SERIALIZATION_SIMPLE
 };
 
