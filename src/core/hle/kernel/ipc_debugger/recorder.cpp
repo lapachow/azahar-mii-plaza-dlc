@@ -37,13 +37,46 @@ ObjectInfo GetObjectInfo(const Kernel::Process* process) {
     }
     return {process->GetTypeName(), process->GetName(), static_cast<int>(process->process_id)};
 }
+
+std::string FormatWords(const std::vector<u32>& words, std::size_t max_words) {
+    std::string out;
+    for (std::size_t i = 0; i < words.size() && i < max_words; ++i) {
+        if (i != 0) {
+            out += ' ';
+        }
+        out += fmt::format("{:08X}", words[i]);
+    }
+    if (words.size() > max_words) {
+        out += " ...";
+    }
+    return out;
+}
+
+// TEMPORARY (Mii Plaza debugging): write every finished IPC call to the log.
+void LogRecord(const RequestRecord& record) {
+    const std::string& port =
+        record.client_port.name.empty() ? record.server_session.name : record.client_port.name;
+
+    // Skip per-frame graphics/audio traffic and portless sessions (file reads).
+    if (port.rfind("gsp::Gpu", 0) == 0 || port.rfind("dsp::DSP", 0) == 0 ||
+        (record.is_hle && record.function_name.empty())) {
+        return;
+    }
+
+    LOG_INFO(Kernel, "IPCLOG {} -> {} {}{} req=[{}] rep=[{}]", record.client_process.name, port,
+             record.function_name,
+             record.status == RequestStatus::HLEUnimplemented ? " (UNIMPLEMENTED)" : "",
+             FormatWords(record.untranslated_request_cmdbuf, 16),
+             FormatWords(record.translated_reply_cmdbuf, 16));
+}
 } // namespace
 
 Recorder::Recorder() = default;
 Recorder::~Recorder() = default;
 
 bool Recorder::IsEnabled() const {
-    return enabled.load(std::memory_order_relaxed);
+    // TEMPORARY (Mii Plaza debugging): always record so every call reaches the log.
+    return true;
 }
 
 void Recorder::RegisterRequest(const std::shared_ptr<Kernel::ClientSession>& client_session,
@@ -124,6 +157,7 @@ void Recorder::SetReplyInfo(const std::shared_ptr<Kernel::Thread>& client_thread
 
     record.untranslated_reply_cmdbuf = std::move(untranslated_cmdbuf);
     record.translated_reply_cmdbuf = std::move(translated_cmdbuf);
+    LogRecord(record);
     InvokeCallbacks(record);
 
     record_map.erase(thread_id);
